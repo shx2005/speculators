@@ -10,8 +10,7 @@ import pytest
 import torch
 from datasets import Dataset as HFDataset
 from PIL import Image
-from transformers import AutoTokenizer
-from transformers import PreTrainedTokenizerBase, ProcessorMixin
+from transformers import AutoTokenizer, PreTrainedTokenizerBase, ProcessorMixin
 
 from speculators.data_generation.preprocessing import (
     _adapt_conv_for_hf,
