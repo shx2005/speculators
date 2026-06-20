@@ -116,7 +116,9 @@ def setup_dataloader(
             dtype=dataset.hidden_states_dtype,
             preprocess=preprocess,
         ),
-        persistent_workers=True,
+        # Persistent worker processes can keep torchrun ranks alive after
+        # distributed cleanup, which makes subprocess-based tests hang.
+        persistent_workers=num_workers > 0 and world_size == 1,
     )
 
 

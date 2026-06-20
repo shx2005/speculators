@@ -143,6 +143,14 @@ def parse_args():
             "trainable tokens."
         ),
     )
+    parser.add_argument(
+        "--multimodal",
+        action="store_true",
+        help=(
+            "Enable multimodal preprocessing with AutoProcessor and preserve "
+            "messages needed for vLLM chat hidden-state generation."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -190,6 +198,7 @@ def main():
         turn_dropout=args.turn_dropout,
         minimum_valid_tokens=args.minimum_valid_tokens,
         trust_remote_code=args.trust_remote_code,
+        is_multimodal=True if args.multimodal else None,
     )
 
     log.info("Done preparing data")

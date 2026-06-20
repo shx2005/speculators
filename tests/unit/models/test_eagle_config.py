@@ -4,6 +4,7 @@ Unit tests for the eagle model module in the Speculators library.
 
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -22,6 +23,7 @@ from speculators import (
     VerifierConfig,
 )
 from speculators.convert.eagle.eagle_legacy_model import EagleSpeculatorConfig
+from speculators.models import utils as model_utils
 from speculators.proposals import GreedyTokenProposalConfig
 
 # ===== Fixtures =====
@@ -156,6 +158,22 @@ def create_layer_config(config_class: type[PretrainedConfig]) -> PretrainedConfi
 
 
 # ===== EagleSpeculatorConfig Tests =====
+
+
+@pytest.mark.regression
+def test_resolve_target_layer_ids_keeps_aux_layers_only(monkeypatch):
+    monkeypatch.setattr(
+        model_utils,
+        "get_verifier_config",
+        lambda _name_or_path: SimpleNamespace(num_hidden_layers=36),
+    )
+
+    with pytest.warns(UserWarning, match="Stripping the verifier's final layer"):
+        layer_ids = model_utils.resolve_target_layer_ids(
+            [2, 18, 33, 36], "unused-verifier-path"
+        )
+
+    assert layer_ids == [2, 18, 33]
 
 
 @pytest.mark.smoke
