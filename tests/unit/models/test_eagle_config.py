@@ -161,7 +161,27 @@ def create_layer_config(config_class: type[PretrainedConfig]) -> PretrainedConfi
 
 
 @pytest.mark.regression
-def test_resolve_target_layer_ids_keeps_aux_layers_only(monkeypatch):
+def test_resolve_target_layer_ids_preserves_explicit_checkpoint_layers(monkeypatch):
+    def raise_if_called(_name_or_path):
+        raise AssertionError(
+            "explicit checkpoint layers should not load verifier config"
+        )
+
+    monkeypatch.setattr(
+        model_utils,
+        "get_verifier_config",
+        raise_if_called,
+    )
+
+    layer_ids = model_utils.resolve_target_layer_ids(
+        [2, 18, 33, 36], "unused-verifier-path"
+    )
+
+    assert layer_ids == [2, 18, 33, 36]
+
+
+@pytest.mark.regression
+def test_strip_verifier_final_layer_id_keeps_aux_layers_only(monkeypatch):
     monkeypatch.setattr(
         model_utils,
         "get_verifier_config",
@@ -169,7 +189,7 @@ def test_resolve_target_layer_ids_keeps_aux_layers_only(monkeypatch):
     )
 
     with pytest.warns(UserWarning, match="Stripping the verifier's final layer"):
-        layer_ids = model_utils.resolve_target_layer_ids(
+        layer_ids = model_utils.strip_verifier_final_layer_id(
             [2, 18, 33, 36], "unused-verifier-path"
         )
 
