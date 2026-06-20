@@ -35,27 +35,20 @@
 set -euo pipefail
 
 # ============ Configuration ============
-MODEL="${MODEL:-Qwen/Qwen3-8B}"
-DATASET="${DATASET:-sharegpt}"                # sharegpt, ultrachat, or path to custom data
-OUTPUT_DIR="${OUTPUT_DIR:-./output}"
-HIDDEN_STATES_DIR="${HIDDEN_STATES_DIR:-/tmp/hidden_states}"
-VLLM_PORT="${VLLM_PORT:-8000}"
-DRAFT_VOCAB_SIZE="${DRAFT_VOCAB_SIZE:-32000}"
-MAX_SAMPLES="${MAX_SAMPLES:-5000}"
-SEQ_LENGTH="${SEQ_LENGTH:-8192}"
-EPOCHS="${EPOCHS:-5}"
-LR="${LR:-1e-4}"
+MODEL="Qwen/Qwen3-8B"
+DATASET="sharegpt"                # sharegpt, ultrachat, or path to custom data
+OUTPUT_DIR="./output"
+VLLM_PORT=8000
+DRAFT_VOCAB_SIZE=32000
+MAX_SAMPLES=5000
+SEQ_LENGTH=8192
+EPOCHS=5
+LR=1e-4
 
 # GPU assignments (online training needs separate GPUs for vLLM and training)
-VLLM_GPUS="${VLLM_GPUS:-0,1}"
-VLLM_DATA_PARALLEL_SIZE="${VLLM_DATA_PARALLEL_SIZE:-2}"
-VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS:-}"
-TRAIN_GPUS="${TRAIN_GPUS:-2,3}"
-if [[ -z "${NUM_TRAIN_GPUS:-}" ]]; then
-    IFS=',' read -r -a TRAIN_GPU_ARR <<< "$TRAIN_GPUS"
-    NUM_TRAIN_GPUS="${#TRAIN_GPU_ARR[@]}"
-fi
-read -r -a VLLM_EXTRA_ARR <<< "$VLLM_EXTRA_ARGS"
+VLLM_GPUS="0,1"
+TRAIN_GPUS="2,3"
+NUM_TRAIN_GPUS=2
 # =======================================
 
 # Step 1: Prepare data
@@ -70,8 +63,7 @@ python scripts/prepare_data.py \
 # Step 2: Launch vLLM server in the background
 echo "=== Step 2: Launching vLLM server ==="
 CUDA_VISIBLE_DEVICES="$VLLM_GPUS" python scripts/launch_vllm.py "$MODEL" \
-    --hidden-states-path "$HIDDEN_STATES_DIR" \
-    -- --data-parallel-size "$VLLM_DATA_PARALLEL_SIZE" --port "$VLLM_PORT" "${VLLM_EXTRA_ARR[@]}" &
+    -- --data-parallel-size 2 --port "$VLLM_PORT" &
 VLLM_PID=$!
 
 # Ensure vLLM is cleaned up on exit
@@ -84,11 +76,6 @@ trap cleanup EXIT
 
 echo "Waiting for vLLM server to be ready..."
 until curl -sf "http://localhost:${VLLM_PORT}/health" > /dev/null 2>&1; do
-    if ! kill -0 "$VLLM_PID" 2>/dev/null; then
-        echo "vLLM server exited before becoming healthy." >&2
-        wait "$VLLM_PID" 2>/dev/null || true
-        exit 1
-    fi
     sleep 2
 done
 echo "vLLM server ready."
@@ -100,7 +87,6 @@ CUDA_VISIBLE_DEVICES="$TRAIN_GPUS" torchrun \
     scripts/train.py \
     --verifier-name-or-path "$MODEL" \
     --data-path "$OUTPUT_DIR" \
-    --hidden-states-path "$HIDDEN_STATES_DIR" \
     --vllm-endpoint "http://localhost:${VLLM_PORT}/v1" \
     --save-path "$OUTPUT_DIR/checkpoints" \
     --draft-vocab-size "$DRAFT_VOCAB_SIZE" \
